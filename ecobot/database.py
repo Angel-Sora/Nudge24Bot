@@ -1,17 +1,26 @@
 import gspread
+import json
+import os
 from oauth2client.service_account import ServiceAccountCredentials
-from config import GSHEET_CREDENTIALS_FILE, SPREADSHEET_ID
+from config import SPREADSHEET_ID
 
 class SheetDB:
     def __init__(self):
-        """Подключаемся к Google Sheets"""
+        """Подключаемся к Google Sheets через Secrets"""
+        # Загружаем credentials из Secrets (переменная окружения)
+        creds_json = os.environ.get("CREDENTIALS_JSON")
+        if not creds_json:
+            raise Exception("❌ CREDENTIALS_JSON не найдена в Secrets! Добавь её в Replit Secrets.")
+        
+        # Парсим JSON
+        creds_dict = json.loads(creds_json)
+        
+        # Настраиваем доступ
         scope = [
             "https://spreadsheets.google.com/feeds",
             "https://www.googleapis.com/auth/drive"
         ]
-        creds = ServiceAccountCredentials.from_json_keyfile_name(
-            GSHEET_CREDENTIALS_FILE, scope
-        )
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
         self.sheet = client.open_by_key(SPREADSHEET_ID).sheet1
         
@@ -21,10 +30,8 @@ class SheetDB:
     def _ensure_headers(self):
         """Создаём заголовки, если таблица пустая"""
         try:
-            # Пробуем прочитать первую строку
             headers = self.sheet.row_values(1)
             if not headers or len(headers) == 0:
-                # Если пусто — пишем заголовки
                 headers = [
                     "user_id",          # A
                     "username",         # B
@@ -45,9 +52,7 @@ class SheetDB:
             print(f"⚠️ Ошибка при создании заголовков: {e}")
 
     def add_user(self, user_id, username, profession, goal, time_available):
-        """
-        Добавляем нового пользователя в таблицу
-        """
+        """Добавляем нового пользователя в таблицу"""
         import datetime
         
         row = [
@@ -68,18 +73,12 @@ class SheetDB:
         print(f"✅ Пользователь {user_id} добавлен в таблицу")
 
     def save_mood(self, user_id, mood, time_of_day):
-        """
-        Сохраняем настроение (утро/вечер)
-        time_of_day: "morning" или "evening"
-        """
+        """Сохраняем настроение (утро/вечер)"""
         try:
-            # Находим строку пользователя
-            cell = self._find_user_row(user_id)
-            if not cell:
+            row_num = self._find_user_row(user_id)
+            if not row_num:
                 print(f"⚠️ Пользователь {user_id} не найден в таблице")
                 return False
-            
-            row_num = cell
             
             if time_of_day == "morning":
                 self.sheet.update_cell(row_num, 6, mood)      # колонка F
@@ -100,10 +99,7 @@ class SheetDB:
             return False
 
     def save_task_result(self, user_id, completed):
-        """
-        Записываем, выполнил ли пользователь задание
-        completed: True или False
-        """
+        """Записываем, выполнил ли пользователь задание"""
         try:
             row_num = self._find_user_row(user_id)
             if not row_num:
@@ -120,9 +116,7 @@ class SheetDB:
             return False
 
     def save_current_task(self, user_id, task):
-        """
-        Сохраняем текущее задание пользователя
-        """
+        """Сохраняем текущее задание пользователя"""
         try:
             row_num = self._find_user_row(user_id)
             if not row_num:
@@ -138,9 +132,7 @@ class SheetDB:
             return False
 
     def get_user_data(self, user_id):
-        """
-        Получаем все данные пользователя в виде словаря
-        """
+        """Получаем все данные пользователя в виде словаря"""
         try:
             all_records = self.sheet.get_all_records()
             for record in all_records:
@@ -152,9 +144,7 @@ class SheetDB:
             return None
 
     def get_all_users(self):
-        """
-        Получаем список всех пользователей
-        """
+        """Получаем список всех пользователей"""
         try:
             all_records = self.sheet.get_all_records()
             return all_records
@@ -163,12 +153,8 @@ class SheetDB:
             return []
 
     def _find_user_row(self, user_id):
-        """
-        Вспомогательный метод: ищем номер строки пользователя
-        Возвращает номер строки (начиная с 1) или None
-        """
+        """Ищем номер строки пользователя"""
         try:
-            # Получаем все значения в колонке A (user_id)
             user_ids = self.sheet.col_values(1)
             for i, uid in enumerate(user_ids, start=1):
                 if str(uid) == str(user_id):
@@ -179,12 +165,8 @@ class SheetDB:
             return None
 
     def update_user_field(self, user_id, field_name, value):
-        """
-        Универсальный метод обновления любого поля
-        field_name: название колонки (как в заголовке)
-        """
+        """Универсальный метод обновления любого поля"""
         try:
-            # Маппинг названий колонок к номерам
             headers = self.sheet.row_values(1)
             if field_name not in headers:
                 print(f"⚠️ Колонка '{field_name}' не найдена")
