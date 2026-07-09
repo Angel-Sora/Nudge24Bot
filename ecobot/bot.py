@@ -1,11 +1,9 @@
 import logging
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
-from telegram.request import HTTPXRequest
 from config import BOT_TOKEN
 from database import SheetDB
 from ai_helper import generate_task
-import httpx
 
 logging.basicConfig(level=logging.INFO)
 
@@ -39,6 +37,7 @@ def yes_no_buttons():
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     
+    # Проверяем, есть ли пользователь в базе
     existing = db.get_user_data(user.id)
     if existing:
         await update.message.reply_text(
@@ -49,15 +48,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
+    # НОВЫЙ ПОЛЬЗОВАТЕЛЬ — отправляем ссылку на анкету (только одно сообщение!)
+    form_link = "https://docs.google.com/forms/d/e/1FAIpQLSdQTb0uuRIw5oREazVFO82AsiVnFuj9Mw3aTTPHNYz3KvTYpA/viewform?fbzx=7145173308504976576"
+    
     await update.message.reply_text(
-        f"Привет, {user.first_name}! 👋\n\n"
-        "Ты в числе первых тестировщиков Nudge24Bot!\n"
-        "Давай познакомимся поближе.\n\n"
-        "🔹 **Кто ты по профессии?** (например: UI/UX дизайнер)\n\n"
-        "📝 **Важно:** Сначала заполни анкету по ссылке, чтобы я мог давать тебе персональные задания:\n"
-        "[ССЫЛКА НА GOOGLE FORMS]"
+        f"👋 Привет, {user.first_name}!\n\n"
+        "Ты в числе первых тестировщиков **Nudge24Bot** — бота, который помогает дизайнерам быть продуктивнее и не выгорать.\n\n"
+        "📝 **Чтобы начать, заполни небольшую анкету:**\n"
+        f"👉 [Заполнить анкету]({form_link})\n\n"
+        "⏳ Это займёт 2 минуты.\n"
+        "После заполнения я дам тебе доступ к боту.\n\n"
+        "✅ Уже заполнил? Просто нажми /start ещё раз!",
+        reply_markup=main_menu(),
+        parse_mode="Markdown",
+        disable_web_page_preview=True
     )
-    return ConversationHandler.END
 
 # === УТРЕННИЙ ОПРОС ===
 async def ask_mood(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -76,7 +81,13 @@ async def save_morning_mood(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     user_data = db.get_user_data(user_id)
     if not user_data:
-        await update.message.reply_text("Сначала заполни анкету (ссылка в приветствии)")
+        form_link = "https://docs.google.com/forms/d/e/1FAIpQLSdQTb0uuRIw5oREazVFO82AsiVnFuj9Mw3aTTPHNYz3KvTYpA/viewform?fbzx=7145173308504976576"
+        await update.message.reply_text(
+            "❌ Я не нашёл тебя в базе данных.\n\n"
+            "Сначала заполни анкету по ссылке, а потом нажми /start снова:\n"
+            f"👉 [Заполнить анкету]({form_link})",
+            parse_mode="Markdown"
+        )
         return ConversationHandler.END
     
     profession = user_data.get("profession", "дизайнер")
@@ -85,6 +96,7 @@ async def save_morning_mood(update: Update, context: ContextTypes.DEFAULT_TYPE):
     task = generate_task(mood, profession, goal)
     
     context.user_data['current_task'] = task
+    db.save_current_task(user_id, task)
     
     await update.message.reply_text(
         f"✨ **Твоё задание на сегодня:**\n\n{task}\n\n"
@@ -147,7 +159,7 @@ async def save_evening_mood(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     return ConversationHandler.END
 
-# === ГЛАВНАЯ ===
+# === ОБРАБОТЧИК ГЛАВНОГО МЕНЮ ===
 async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if "Оценить настроение" in text:
@@ -162,17 +174,6 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
 def main():
-    # === НАСТРОЙКА ПРОКСИ (для обхода блокировок) ===
-    # Вариант 1: SOCKS5 прокси (рекомендуется)
-    # proxy_url = "socks5://user:pass@proxy.server:1080"
-    # Вариант 2: HTTP прокси
-    # proxy_url = "http://proxy.server:3128"
-    
-    # Если у тебя нет прокси, закомментируй следующие 2 строки и раскомментируй строку без прокси
-    # request = HTTPXRequest(proxy="http://proxy.server:3128")  # ← замени на свои данные
-    # app = Application.builder().token(BOT_TOKEN).request(request).build()
-    
-    # БЕЗ ПРОКСИ (если VPN включён или интернет работает):
     app = Application.builder().token(BOT_TOKEN).build()
     
     conv_handler = ConversationHandler(
