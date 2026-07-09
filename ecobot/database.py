@@ -7,7 +7,7 @@ from config import SPREADSHEET_ID
 class SheetDB:
     def __init__(self):
         """Подключаемся к Google Sheets через Secrets"""
-        # Загружаем credentials из Secrets (переменная окружения)
+        # Загружаем credentials из Secrets
         creds_json = os.environ.get("CREDENTIALS_JSON")
         if not creds_json:
             raise Exception("❌ CREDENTIALS_JSON не найдена в Secrets! Добавь её в Replit Secrets.")
@@ -21,17 +21,32 @@ class SheetDB:
             "https://www.googleapis.com/auth/drive"
         ]
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        client = gspread.authorize(creds)
-        self.sheet = client.open_by_key(SPREADSHEET_ID).sheet1
+        self.client = gspread.authorize(creds)
         
-        # Проверяем, есть ли заголовки, если нет — создаём
+        # Пытаемся открыть таблицу по ID, если не получается — создаём новую
+        try:
+            self.sheet = self.client.open_by_key(SPREADSHEET_ID).sheet1
+            print("✅ Таблица найдена")
+        except gspread.exceptions.SpreadsheetNotFound:
+            print("⚠️ Таблица не найдена, создаю новую...")
+            # Создаём новую таблицу
+            self.sheet = self.client.create("Nudge24Bot Data")
+            # Делимся доступом с самим собой (опционально)
+            # self.sheet.share(os.environ.get("YOUR_EMAIL"), perm_type='user', role='writer')
+            print("✅ Новая таблица создана!")
+        
+        # Проверяем и создаём заголовки
         self._ensure_headers()
 
     def _ensure_headers(self):
-        """Создаём заголовки, если таблица пустая"""
+        """Создаём заголовки, если их нет"""
         try:
-            headers = self.sheet.row_values(1)
-            if not headers or len(headers) == 0:
+            # Получаем первую строку
+            headers_row = self.sheet.row_values(1)
+            
+            # Если первая строка пустая или нет нужных заголовков
+            if not headers_row or headers_row[0] != "user_id":
+                # Добавляем заголовки
                 headers = [
                     "user_id",          # A
                     "username",         # B
@@ -46,14 +61,31 @@ class SheetDB:
                     "current_task",     # K
                     "registered_at"     # L
                 ]
-                self.sheet.insert_row(headers, 1)
-                print("✅ Заголовки таблицы созданы")
+                
+                # Если таблица пустая — вставляем в первую строку
+                if not headers_row:
+                    self.sheet.insert_row(headers, 1)
+                else:
+                    # Если есть данные, но нет заголовков — обновляем первую строку
+                    for i, header in enumerate(headers, start=1):
+                        self.sheet.update_cell(1, i, header)
+                
+                print("✅ Заголовки таблицы созданы!")
+            else:
+                print("✅ Заголовки уже есть")
+                
         except Exception as e:
-            print(f"⚠️ Ошибка при создании заголовков: {e}")
+            print(f"⚠️ Ошибка при работе с заголовками: {e}")
 
     def add_user(self, user_id, username, profession, goal, time_available):
         """Добавляем нового пользователя в таблицу"""
         import datetime
+        
+        # Проверяем, есть ли уже такой пользователь
+        existing = self.get_user_data(user_id)
+        if existing:
+            print(f"ℹ️ Пользователь {user_id} уже существует")
+            return True
         
         row = [
             str(user_id),               # A: user_id
@@ -71,14 +103,18 @@ class SheetDB:
         ]
         self.sheet.append_row(row)
         print(f"✅ Пользователь {user_id} добавлен в таблицу")
+        return True
 
     def save_mood(self, user_id, mood, time_of_day):
         """Сохраняем настроение (утро/вечер)"""
         try:
             row_num = self._find_user_row(user_id)
             if not row_num:
-                print(f"⚠️ Пользователь {user_id} не найден в таблице")
-                return False
+                print(f"⚠️ Пользователь {user_id} не найден в таблице, добавляю...")
+                self.add_user(user_id, "", "дизайнер", "повысить продуктивность", "")
+                row_num = self._find_user_row(user_id)
+                if not row_num:
+                    return False
             
             if time_of_day == "morning":
                 self.sheet.update_cell(row_num, 6, mood)      # колонка F
@@ -155,6 +191,7 @@ class SheetDB:
     def _find_user_row(self, user_id):
         """Ищем номер строки пользователя"""
         try:
+            # Получаем все значения в колонке A (user_id)
             user_ids = self.sheet.col_values(1)
             for i, uid in enumerate(user_ids, start=1):
                 if str(uid) == str(user_id):
