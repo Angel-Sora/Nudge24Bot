@@ -41,9 +41,11 @@ pip install -r requirements.txt
 Создай файл .env:
 
 .env
+```bash
 BOT_TOKEN=твой_токен_бота
 GEMINI_API_KEY=твой_ключ_gemini
 SPREADSHEET_ID=id_твоей_таблицы
+```
 ### Шаг 4: Настройка Google Sheets API
 4.1 Создай сервисный аккаунт:
 Перейди в Google Cloud Console
@@ -106,7 +108,7 @@ Value: вставь весь скопированный JSON из файла cre
 ```bash
 python bot.py
 ```
-🌐 Деплой на Replit (рекомендуемый способ)
+## 🌐 Деплой на Replit (рекомендуемый способ)
 Replit — это бесплатный хостинг для Python-ботов, который работает 24/7.
 
 6.1 Создание Replit:
@@ -147,7 +149,7 @@ CREDENTIALS_JSON = весь JSON из credentials.json
 
 Проверь логи в консоли (вкладка "Console")
 
-🤖 Как бот работает в Telegram
+## 🤖 Как бот работает в Telegram
 Создание бота в Telegram:
 Найди в Telegram @BotFather
 
@@ -177,8 +179,9 @@ BotFather пришлёт токен — сохрани его!
 
 Вечером бот сам спросит про выполнение
 
-# 🏗 Архитектура
-text
+## 🏗 Архитектура
+
+```
 Nudge24Bot/
 ├── bot.py              # Основной файл с логикой бота
 ├── ai_helper.py        # Интеграция с Google Gemini AI
@@ -188,8 +191,8 @@ Nudge24Bot/
 ├── .env                # Переменные окружения (не в репозитории)
 ├── credentials.json    # JSON сервисного аккаунта (не в репозитории)
 └── README.md           # Документация
-
-# 🎮 Как пользоваться ботом
+```
+## 🎮 Как пользоваться ботом
 ### 1. Старт
 Напиши /start — бот предложит заполнить анкету.
 
@@ -289,6 +292,13 @@ CREDENTIALS_JSON — это весь JSON-объект из скачанного
 Убедись, что в .replit файле указан правильный entrypoint: python bot.py
 
 Нажми "Stop" → "Run" заново
+
+## 🙏 Благодарности
+
+- [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot) — отличная библиотека для Telegram
+- [Google Gemini AI](https://ai.google.dev/) — генерация заданий
+- [gspread](https://docs.gspread.org/) — работа с Google Sheets
+- [Replit](https://replit.com) — бесплатный хостинг
 
 ## 👨‍💻 Автор
 Angel-Sora
