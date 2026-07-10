@@ -1,0 +1,82 @@
+function onFormSubmit(e) {
+  var responses = e.values;
+  
+  // --- ИНДЕКСЫ КОЛОНОК В ФОРМЕ (проверь порядок!) ---
+  // [0]  - Отметка времени
+  // [1]  - Как тебя зовут?
+  // [2]  - Твой Telegram @userman
+  // [3]  - Какое направление дизайна?
+  // [4]  - Сколько лет ты в дизайне?
+  // [5]  - Сколько часов в день работаешь за комп?
+  // [6]  - Что тебя сейчас больше всего беспокоит?
+  // [7]  - Какую цель ты бы хотел достичь с помощью?
+  // [8]  - Сколько минут в день ты готов уделять боту?
+  // [9]  - Что для тебя было бы "вау-результатом"?
+  // [10] - Готов ли дать обратную связь в конце экс
+  // [11] - Твой Telegram ID          ← ЭТО ПОСЛЕДНИЙ ВОПРОС!
+  
+  // --- Забираем значения по индексам ---
+  var tgId = responses[11] || "";      // Твой Telegram ID (индекс 11)
+  var username = responses[2] || "";   // Твой Telegram @userman (индекс 2)
+  var profession = responses[3] || ""; // Какое направление дизайна? (индекс 3)
+  var goal = responses[7] || "";       // Какую цель ты бы хотел достичь с помощью? (индекс 7)
+  var timeAvailable = responses[8] || ""; // Сколько минут в день готов уделять? (индекс 8)
+  
+  // --- Логируем для проверки ---
+  Logger.log("📋 Данные из формы:");
+  Logger.log("tgId = " + tgId);
+  Logger.log("username = " + username);
+  Logger.log("profession = " + profession);
+  Logger.log("goal = " + goal);
+  Logger.log("timeAvailable = " + timeAvailable);
+  
+  // Если нет Telegram ID — выходим
+  if (!tgId || tgId === "") {
+    Logger.log("❌ Telegram ID пустой! Пользователь не добавлен.");
+    return;
+  }
+  
+  // --- Открываем ВТОРУЮ таблицу (Лист1) ---
+  var targetSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Лист1");
+  if (!targetSheet) {
+    targetSheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet("Лист1");
+  }
+  
+  // --- Проверяем заголовки во второй таблице ---
+  var headers = targetSheet.getRange(1, 1, 1, 12).getValues()[0];
+  if (headers[0] !== "user_id") {
+    var newHeaders = [
+      "user_id", "username", "profession", "goal", "time_available",
+      "morning_mood", "morning_time", "evening_mood", "evening_time",
+      "task_completed", "current_task", "registered_at"
+    ];
+    targetSheet.getRange(1, 1, 1, 12).setValues([newHeaders]);
+    Logger.log("✅ Заголовки созданы во втором листе");
+  }
+  
+  // --- Проверяем, есть ли пользователь ---
+  var data = targetSheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === String(tgId)) {
+      Logger.log("ℹ️ Пользователь " + tgId + " уже есть");
+      return;
+    }
+  }
+  
+  // --- Добавляем пользователя ---
+  var now = new Date();
+  var formattedDate = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+  
+  var newRow = [
+    String(tgId),          // user_id
+    username,              // username
+    profession,            // profession
+    goal,                  // goal
+    timeAvailable,         // time_available
+    "", "", "", "", "", "", // пустые колонки
+    formattedDate          // registered_at
+  ];
+  
+  targetSheet.appendRow(newRow);
+  Logger.log("✅ Пользователь " + tgId + " добавлен во второй лист!");
+}
